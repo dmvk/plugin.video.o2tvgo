@@ -94,24 +94,32 @@ class O2TVGO:
         if not self.username or not self.password:
             raise AuthenticationError()
         headers = _COMMON_HEADERS
+        headers["X-Nangu-Device-Name"] = self.device_id
         headers["Content-Type"] = "application/x-www-form-urlencoded;charset=UTF-8"
-        data = {  'grant_type' : 'password',
-                  'client_id' : 'tef-web-portal-etnetera',
-                  'client_secret' : '2b16ac9984cd60dd0154f779ef200679',
-                  'username' : self.username,
-                  'password' : self.password,
-                  'platform_id' : '231a7d6678d00c65f6f3b2aaa699a0d0',
-                  'language' : 'cs'}
-        req = requests.post('https://oauth.o2tv.cz/oauth/token', data=data, headers=headers, verify=False)
+        data = {'username': self.username,
+                'password': self.password}
+        req = requests.post('https://ottmediator.o2tv.cz:4443/ottmediator-war/login', data=data, headers=headers, verify=False)
+		
         j = req.json()
-        if 'error' in j:
-            error = j['error']
-            if error == 'authentication-failed':
-                raise AuthenticationError()
-            else:
-                raise Exception(error)
-        self.access_token = j["access_token"]
-        self.expires_in = j["expires_in"]
+        service_id = str(j['services'][0]['service_id'])
+        remote_access_token = str(j['remote_access_token'])
+
+        data = {'service_id': service_id, 'remote_access_token': remote_access_token}
+        req = requests.post('https://ottmediator.o2tv.cz:4443/ottmediator-war/loginChoiceService', data=data, headers=headers, verify=False)
+
+        data = { 'grant_type': 'remote_access_token',
+                 'client_id': 'tef-web-portal-etnetera',
+                 'client_secret': '2b16ac9984cd60dd0154f779ef200679',
+                 'remote_access_token': remote_access_token,
+                 'platform_id': '231a7d6678d00c65f6f3b2aaa699a0d0',
+                 'language': 'cs',
+                 'authority': 'tef-sso',
+                 'isp_id': '1' }
+        req = requests.post('https://oauth.o2tv.cz/oauth/token', data=data, headers=headers, verify=False)
+
+        j = req.json()
+        self.access_token = j['access_token']
+        self.expires_in = j['expires_in']
         return self.access_token
 
     def refresh_configuration(self):
